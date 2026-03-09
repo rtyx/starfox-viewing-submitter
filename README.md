@@ -1,4 +1,4 @@
-# flatfox-auto-viewing
+# starfox-viewing-submitter
 
 Chrome Extension (Manifest V3) that auto-selects an available viewing date on Flatfox and submits it.
 
@@ -30,7 +30,7 @@ Console output includes:
 2. Open Chrome and go to `chrome://extensions`.
 3. Enable **Developer mode** (top-right).
 4. Click **Load unpacked**.
-5. Select the `flatfox-auto-viewing` folder.
+5. Select the `starfox-viewing-submitter` folder.
 
 ## Usage
 

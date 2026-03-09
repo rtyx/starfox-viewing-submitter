@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const BOT_TAG = "[FlatfoxBot]";
+  const BOT_TAG = "[StarfoxViewingSubmitter]";
   const MIN_REFRESH_MS = 60_000;
   const MAX_REFRESH_MS = 300_000;
   const BLOCKED_LABEL_SNIPPETS = ["cannot attend", "date is fully booked"];

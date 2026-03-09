@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Flatfox Auto Viewing",
+  "name": "Starfox Viewing Submitter",
   "description": "Automatically books available Flatfox viewing dates with randomized delays.",
   "version": "1.0.0",
   "permissions": ["scripting", "tabs"],
