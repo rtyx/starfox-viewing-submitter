@@ -9,6 +9,7 @@
 
   let refreshScheduled = false;
   let statusElement = null;
+  let refreshCountdownInterval = null;
 
   const randomInt = (min, max) =>
     Math.floor(Math.random() * (max - min + 1)) + min;
@@ -62,6 +63,29 @@
     if (timeNode) {
       timeNode.textContent = `Updated ${nowLabel()}`;
     }
+  };
+
+  const clearRefreshCountdown = () => {
+    if (!refreshCountdownInterval) return;
+    clearInterval(refreshCountdownInterval);
+    refreshCountdownInterval = null;
+  };
+
+  const startRefreshCountdown = (totalSeconds) => {
+    clearRefreshCountdown();
+
+    let remainingSeconds = totalSeconds;
+    setStatus("Waiting for availability", `refresh in ${remainingSeconds}s`);
+
+    refreshCountdownInterval = setInterval(() => {
+      remainingSeconds -= 1;
+      if (remainingSeconds <= 0) {
+        clearRefreshCountdown();
+        return;
+      }
+
+      setStatus("Waiting for availability", `refresh in ${remainingSeconds}s`);
+    }, 1000);
   };
 
   const isDisabled = (radio) =>
@@ -118,16 +142,18 @@
     refreshScheduled = true;
 
     const delay = randomInt(MIN_REFRESH_MS, MAX_REFRESH_MS);
-    const seconds = Math.round(delay / 1000);
-    setStatus("Waiting for availability", `refresh in ${seconds}s`);
+    const seconds = Math.ceil(delay / 1000);
+    startRefreshCountdown(seconds);
     console.log(`${BOT_TAG} Refreshing in ${seconds} seconds`);
 
     setTimeout(() => {
+      clearRefreshCountdown();
       location.reload();
     }, delay);
   };
 
   const submitBooking = async () => {
+    clearRefreshCountdown();
     setStatus("Scanning viewing options");
     const availableRadio = getCandidateRadio();
     if (!availableRadio) {
