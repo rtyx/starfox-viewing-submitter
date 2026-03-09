@@ -3,7 +3,7 @@
   "name": "Starfox Viewing Submitter",
   "description": "Automatically books available Flatfox viewing dates with randomized delays.",
   "version": "1.0.0",
-  "permissions": ["scripting", "tabs"],
+  "permissions": ["scripting", "tabs", "storage"],
   "host_permissions": ["https://flatfox.ch/*"],
   "content_scripts": [
     {

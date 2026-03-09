@@ -2,22 +2,91 @@
   "use strict";
 
   const BOT_TAG = "[StarfoxViewingSubmitter]";
-  const MIN_REFRESH_MS = 60_000;
-  const MAX_REFRESH_MS = 300_000;
   const BLOCKED_LABEL_SNIPPETS = ["cannot attend", "date is fully booked"];
   const STATUS_ID = "starfox-viewing-submitter-status";
+  const STORAGE_KEY = "refresh_range_minutes";
+  const DEFAULT_MIN_MINUTES = 1;
+  const DEFAULT_MAX_MINUTES = 5;
+  const ABS_MIN_MINUTES = 1;
+  const ABS_MAX_MINUTES = 180;
 
   let refreshScheduled = false;
   let statusElement = null;
   let refreshCountdownInterval = null;
+  let statusState = "Starting...";
+  let statusDetails = "";
+  let refreshRangeMinutes = {
+    min: DEFAULT_MIN_MINUTES,
+    max: DEFAULT_MAX_MINUTES,
+  };
 
   const randomInt = (min, max) =>
     Math.floor(Math.random() * (max - min + 1)) + min;
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
   const normalize = (text) => (text || "").replace(/\s+/g, " ").trim().toLowerCase();
   const nowLabel = () => new Date().toLocaleTimeString();
+
+  const sanitizeMinutes = (minValue, maxValue) => {
+    let min = Number.parseInt(String(minValue), 10);
+    let max = Number.parseInt(String(maxValue), 10);
+
+    if (!Number.isFinite(min)) min = DEFAULT_MIN_MINUTES;
+    if (!Number.isFinite(max)) max = DEFAULT_MAX_MINUTES;
+
+    min = Math.max(ABS_MIN_MINUTES, Math.min(ABS_MAX_MINUTES, min));
+    max = Math.max(ABS_MIN_MINUTES, Math.min(ABS_MAX_MINUTES, max));
+
+    if (min > max) {
+      [min, max] = [max, min];
+    }
+
+    return { min, max };
+  };
+
+  const canUseStorage = () =>
+    typeof chrome !== "undefined" &&
+    !!chrome.storage &&
+    !!chrome.storage.local;
+
+  const loadRefreshRange = async () => {
+    if (!canUseStorage()) return;
+
+    try {
+      const payload = await new Promise((resolve, reject) => {
+        chrome.storage.local.get([STORAGE_KEY], (result) => {
+          const error = chrome.runtime && chrome.runtime.lastError;
+          if (error) {
+            reject(new Error(error.message));
+            return;
+          }
+          resolve(result);
+        });
+      });
+
+      const stored = payload && payload[STORAGE_KEY];
+      if (!stored || typeof stored !== "object") return;
+
+      refreshRangeMinutes = sanitizeMinutes(stored.min, stored.max);
+    } catch (error) {
+      console.warn(`${BOT_TAG} Failed to load saved range`, error);
+    }
+  };
+
+  const saveRefreshRange = async (range) => {
+    if (!canUseStorage()) return;
+
+    await new Promise((resolve, reject) => {
+      chrome.storage.local.set({ [STORAGE_KEY]: range }, () => {
+        const error = chrome.runtime && chrome.runtime.lastError;
+        if (error) {
+          reject(new Error(error.message));
+          return;
+        }
+        resolve();
+      });
+    });
+  };
 
   const ensureStatusUi = () => {
     if (statusElement && document.body.contains(statusElement)) return statusElement;
@@ -33,7 +102,7 @@
     wrapper.style.position = "fixed";
     wrapper.style.right = "16px";
     wrapper.style.bottom = "16px";
-    wrapper.style.maxWidth = "320px";
+    wrapper.style.maxWidth = "340px";
     wrapper.style.padding = "10px 12px";
     wrapper.style.borderRadius = "10px";
     wrapper.style.background = "rgba(17, 24, 39, 0.92)";
@@ -41,28 +110,99 @@
     wrapper.style.font = "12px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif";
     wrapper.style.zIndex = "2147483647";
     wrapper.style.boxShadow = "0 8px 24px rgba(0, 0, 0, 0.35)";
-    wrapper.style.pointerEvents = "none";
+    wrapper.style.pointerEvents = "auto";
     wrapper.innerHTML = [
       '<div style="font-weight:600;margin-bottom:2px;">Starfox Viewing Submitter</div>',
-      '<div data-role="state">Starting…</div>',
-      '<div data-role="time" style="opacity:.8;margin-top:2px;"></div>',
+      '<div data-role="state">Starting...</div>',
+      '<div data-role="time" style="opacity:.85;margin-top:2px;"></div>',
+      '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;">',
+      '<label style="display:flex;align-items:center;gap:4px;">Min <input data-role="min-minutes" type="number" min="1" max="180" step="1" style="width:58px;background:#111827;color:#F9FAFB;border:1px solid #4B5563;border-radius:6px;padding:2px 4px;"></label>',
+      '<label style="display:flex;align-items:center;gap:4px;">Max <input data-role="max-minutes" type="number" min="1" max="180" step="1" style="width:58px;background:#111827;color:#F9FAFB;border:1px solid #4B5563;border-radius:6px;padding:2px 4px;"></label>',
+      '<button data-role="save-range" type="button" style="background:#10B981;color:#052E16;border:0;border-radius:6px;padding:4px 8px;font-weight:600;cursor:pointer;">Save</button>',
+      "</div>",
+      '<div data-role="config-note" style="opacity:.85;margin-top:6px;min-height:16px;"></div>',
     ].join("");
 
     document.body.appendChild(wrapper);
     statusElement = wrapper;
+
+    const saveButton = wrapper.querySelector('[data-role="save-range"]');
+    if (saveButton) {
+      saveButton.addEventListener("click", () => {
+        const minInput = wrapper.querySelector('[data-role="min-minutes"]');
+        const maxInput = wrapper.querySelector('[data-role="max-minutes"]');
+
+        const range = sanitizeMinutes(
+          minInput && "value" in minInput ? minInput.value : refreshRangeMinutes.min,
+          maxInput && "value" in maxInput ? maxInput.value : refreshRangeMinutes.max
+        );
+
+        refreshRangeMinutes = range;
+        syncRangeInputs();
+        renderStatus();
+
+        void saveRefreshRange(range)
+          .then(() => {
+            setConfigNote(
+              refreshScheduled
+                ? `Saved ${range.min}-${range.max} min (applies next cycle)`
+                : `Saved ${range.min}-${range.max} min`
+            );
+          })
+          .catch(() => {
+            setConfigNote("Could not save range", true);
+          });
+      });
+    }
+
     return statusElement;
   };
 
-  const setStatus = (state, details = "") => {
+  const setConfigNote = (message, isError = false) => {
+    const ui = ensureStatusUi();
+    const noteNode = ui.querySelector('[data-role="config-note"]');
+    if (!noteNode) return;
+
+    noteNode.textContent = message;
+    noteNode.style.color = isError ? "#FCA5A5" : "#A7F3D0";
+
+    setTimeout(() => {
+      if (noteNode.textContent === message) {
+        noteNode.textContent = "";
+      }
+    }, 3000);
+  };
+
+  const syncRangeInputs = () => {
+    const ui = ensureStatusUi();
+    const minInput = ui.querySelector('[data-role="min-minutes"]');
+    const maxInput = ui.querySelector('[data-role="max-minutes"]');
+
+    if (minInput) minInput.value = String(refreshRangeMinutes.min);
+    if (maxInput) maxInput.value = String(refreshRangeMinutes.max);
+  };
+
+  const renderStatus = () => {
     const ui = ensureStatusUi();
     const stateNode = ui.querySelector('[data-role="state"]');
     const timeNode = ui.querySelector('[data-role="time"]');
+
     if (stateNode) {
-      stateNode.textContent = details ? `${state} · ${details}` : state;
+      stateNode.textContent = statusDetails
+        ? `${statusState} · ${statusDetails}`
+        : statusState;
     }
+
     if (timeNode) {
-      timeNode.textContent = `Updated ${nowLabel()}`;
+      timeNode.textContent =
+        `Range ${refreshRangeMinutes.min}-${refreshRangeMinutes.max} min · Updated ${nowLabel()}`;
     }
+  };
+
+  const setStatus = (state, details = "") => {
+    statusState = state;
+    statusDetails = details;
+    renderStatus();
   };
 
   const clearRefreshCountdown = () => {
@@ -141,8 +281,11 @@
     if (refreshScheduled) return;
     refreshScheduled = true;
 
-    const delay = randomInt(MIN_REFRESH_MS, MAX_REFRESH_MS);
+    const minMs = refreshRangeMinutes.min * 60_000;
+    const maxMs = refreshRangeMinutes.max * 60_000;
+    const delay = randomInt(minMs, maxMs);
     const seconds = Math.ceil(delay / 1000);
+
     startRefreshCountdown(seconds);
     console.log(`${BOT_TAG} Refreshing in ${seconds} seconds`);
 
@@ -155,6 +298,7 @@
   const submitBooking = async () => {
     clearRefreshCountdown();
     setStatus("Scanning viewing options");
+
     const availableRadio = getCandidateRadio();
     if (!availableRadio) {
       scheduleRefresh();
@@ -186,10 +330,13 @@
     setStatus("Booking submitted", "waiting for page response");
   };
 
-  const start = () => {
+  const start = async () => {
     if (window.__flatfoxBotStarted) return;
     window.__flatfoxBotStarted = true;
+
+    await loadRefreshRange();
     ensureStatusUi();
+    syncRangeInputs();
     setStatus("Bot active", "starting scan");
 
     const initialDelay = randomInt(250, 1500);
@@ -203,8 +350,10 @@
   };
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", start, { once: true });
+    document.addEventListener("DOMContentLoaded", () => {
+      void start();
+    }, { once: true });
   } else {
-    start();
+    void start();
   }
 })();

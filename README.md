@@ -25,6 +25,7 @@ Console output includes:
 - `[StarfoxViewingSubmitter] Submitting booking`
 
 The extension also shows a small floating status panel at the bottom-right of the viewing page so you can see current state without opening DevTools.
+You can set the refresh `Min` and `Max` minutes directly in that panel and click `Save` (the value is persisted locally).
 
 ## Install (local)
 
