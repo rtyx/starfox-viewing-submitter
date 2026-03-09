@@ -1,0 +1,10 @@
+{
+  "name": "flatfox-auto-viewing",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chrome Extension (Manifest V3) to auto-book Flatfox viewing dates.",
+  "scripts": {
+    "check": "echo \"No build step required for this extension.\""
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Flatfox Auto Viewing",
+  "description": "Automatically books available Flatfox viewing dates with randomized delays.",
+  "version": "1.0.0",
+  "permissions": ["scripting", "tabs"],
+  "host_permissions": ["https://flatfox.ch/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://flatfox.ch/en/viewing/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
