@@ -20,9 +20,11 @@ Chrome Extension (Manifest V3) that auto-selects an available viewing date on Fl
 
 Console output includes:
 
-- `[FlatfoxBot] Available viewing found`
-- `[FlatfoxBot] Refreshing in X seconds`
-- `[FlatfoxBot] Submitting booking`
+- `[StarfoxViewingSubmitter] Available viewing found`
+- `[StarfoxViewingSubmitter] Refreshing in X seconds`
+- `[StarfoxViewingSubmitter] Submitting booking`
+
+The extension also shows a small floating status panel at the bottom-right of the viewing page so you can see current state without opening DevTools.
 
 ## Install (local)
 
